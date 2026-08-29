@@ -1,0 +1,901 @@
+openapi: 3.1.0
+info:
+  title: Spotcheck Service API
+  description: |
+    Local Gemini computer-use + Playwright API. Listens on `127.0.0.1` only.
+
+    All `/v1/*` routes except `GET /v1/health` require
+    `Authorization: Bearer <apiToken>`.
+
+    Errors are JSON: `{ "error": "message" }`. Wrong methods return `405` with
+    an `Allow` header and a plain-text body.
+  version: 1.0.0
+  license:
+    name: AGPL-3.0-or-later
+    identifier: AGPL-3.0-or-later
+
+servers:
+  - url: http://127.0.0.1:18732
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: health
+  - name: models
+  - name: agent
+  - name: session
+  - name: screenshot
+  - name: saved
+  - name: history
+
+paths:
+  /v1/health:
+    get:
+      tags: [health]
+      security: []
+      summary: Liveness check
+      responses:
+        "200":
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/models:
+    get:
+      tags: [models]
+      summary: List allowed models
+      responses:
+        "200":
+          description: Models from `files/model.json`
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ModelEntry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/agent:
+    post:
+      tags: [agent]
+      summary: Run an agent task
+      description: |
+        Streams NDJSON events (`intent`, `safety_confirm`, `done`, `error`).
+        Each event also includes `session` and `screenshot`.
+        Disconnecting the client aborts the run.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentRequest"
+      responses:
+        "200":
+          description: NDJSON event stream
+          content:
+            application/x-ndjson:
+              schema:
+                $ref: "#/components/schemas/AgentEvent"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Error"
+        "413":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/agent/safety:
+    post:
+      tags: [agent]
+      summary: Confirm or deny a pending safety prompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SafetyConfirmRequest"
+      responses:
+        "200":
+          description: Confirmation accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/session:
+    get:
+      tags: [session]
+      summary: Browser session status
+      responses:
+        "200":
+          description: Current session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/session/back:
+    post:
+      tags: [session]
+      summary: Navigate back
+      responses:
+        "200":
+          description: Updated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/session/forward:
+    post:
+      tags: [session]
+      summary: Navigate forward
+      responses:
+        "200":
+          description: Updated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/session/reload:
+    post:
+      tags: [session]
+      summary: Reload the page
+      responses:
+        "200":
+          description: Updated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/screenshot:
+    get:
+      tags: [screenshot]
+      summary: Latest processed screenshot name
+      responses:
+        "200":
+          description: Image file name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScreenshotName"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/saved:
+    get:
+      tags: [saved]
+      summary: List saved flows
+      description: Does not include `create-default.json`.
+      responses:
+        "200":
+          description: File names
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+    post:
+      tags: [saved]
+      summary: Create a saved flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavedCreateRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileNameResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/saved/running:
+    get:
+      tags: [saved]
+      summary: List currently running saved flows
+      responses:
+        "200":
+          description: Running file names
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/saved/run:
+    post:
+      tags: [saved]
+      summary: Start a saved flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileNameRequest"
+      responses:
+        "202":
+          description: Run started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryFileResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/saved/create-default.json:
+    get:
+      tags: [saved]
+      summary: Get create-tab default items
+      responses:
+        "200":
+          description: Default flow (empty items if missing)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedFile"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+    put:
+      tags: [saved]
+      summary: Replace create-tab default items
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavedItemsBody"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileNameResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/saved/{fileName}:
+    parameters:
+      - $ref: "#/components/parameters/fileName"
+    get:
+      tags: [saved]
+      summary: Get a saved flow
+      responses:
+        "200":
+          description: Saved flow
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedFile"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+    put:
+      tags: [saved]
+      summary: Replace a saved flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavedItemsBody"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileNameResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+    delete:
+      tags: [saved]
+      summary: Delete a saved flow
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileNameResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/history:
+    get:
+      tags: [history]
+      summary: List history runs
+      responses:
+        "200":
+          description: All runs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/history/detail:
+    post:
+      tags: [history]
+      summary: Get one history run with screenshots
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HistoryFileRequest"
+      responses:
+        "200":
+          description: Run detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryDetail"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/history/status:
+    post:
+      tags: [history]
+      summary: Latest run status for a saved flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileNameRequest"
+      responses:
+        "200":
+          description: Latest run
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryStatus"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/history/stop:
+    post:
+      tags: [history]
+      summary: Stop the latest run for a saved flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileNameRequest"
+      responses:
+        "200":
+          description: Stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Value of `apiToken` from the sibling config file.
+
+  parameters:
+    fileName:
+      name: fileName
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Saved flow name. `.json` is added if missing.
+
+  responses:
+    Unauthorized:
+      description: Missing or wrong Bearer token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+    Error:
+      description: Request failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+    MethodNotAllowed:
+      description: Wrong HTTP method
+      headers:
+        Allow:
+          schema:
+            type: string
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Method not allowed
+
+  schemas:
+    ErrorBody:
+      type: object
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+
+    OkResponse:
+      type: object
+      required: [ok]
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: true
+
+    FileNameRequest:
+      type: object
+      required: [fileName]
+      additionalProperties: false
+      properties:
+        fileName:
+          type: string
+
+    FileNameResponse:
+      type: object
+      required: [fileName]
+      additionalProperties: false
+      properties:
+        fileName:
+          type: string
+
+    HistoryFileRequest:
+      type: object
+      required: [historyFile]
+      additionalProperties: false
+      properties:
+        historyFile:
+          type: string
+
+    HistoryFileResponse:
+      type: object
+      required: [historyFile]
+      additionalProperties: false
+      properties:
+        historyFile:
+          type: string
+
+    FileList:
+      type: object
+      required: [files]
+      additionalProperties: false
+      properties:
+        files:
+          type: array
+          items:
+            type: string
+
+    ScreenshotName:
+      type: object
+      required: [imageName]
+      additionalProperties: false
+      properties:
+        imageName:
+          type: string
+
+    SessionStatus:
+      type: object
+      required: [open, url]
+      additionalProperties: false
+      properties:
+        open:
+          type: boolean
+        url:
+          type: string
+
+    ModelEntry:
+      type: object
+      required:
+        - provider
+        - model
+        - input_price_per_million
+        - output_price_per_million
+        - cache_price_per_million
+        - description
+      additionalProperties: false
+      properties:
+        provider:
+          type: string
+        model:
+          type: string
+        input_price_per_million:
+          type: number
+        output_price_per_million:
+          type: number
+        cache_price_per_million:
+          type: number
+        description:
+          type: string
+
+    AgentRequest:
+      type: object
+      required: [task, model]
+      additionalProperties: false
+      properties:
+        task:
+          type: string
+        model:
+          type: string
+
+    SafetyConfirmRequest:
+      type: object
+      required: [id, confirmed]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        confirmed:
+          type: boolean
+
+    AgentStreamExtras:
+      type: object
+      required: [session, screenshot]
+      properties:
+        session:
+          $ref: "#/components/schemas/SessionStatus"
+        screenshot:
+          $ref: "#/components/schemas/ScreenshotName"
+
+    AgentEvent:
+      oneOf:
+        - $ref: "#/components/schemas/AgentIntentEvent"
+        - $ref: "#/components/schemas/AgentSafetyEvent"
+        - $ref: "#/components/schemas/AgentDoneEvent"
+        - $ref: "#/components/schemas/AgentErrorEvent"
+
+    AgentIntentEvent:
+      allOf:
+        - $ref: "#/components/schemas/AgentStreamExtras"
+        - type: object
+          required: [type, label]
+          properties:
+            type:
+              type: string
+              const: intent
+            label:
+              type: string
+
+    AgentSafetyEvent:
+      allOf:
+        - $ref: "#/components/schemas/AgentStreamExtras"
+        - type: object
+          required: [type, id, action, explanation]
+          properties:
+            type:
+              type: string
+              const: safety_confirm
+            id:
+              type: string
+              format: uuid
+            action:
+              type: string
+            explanation:
+              type: string
+
+    AgentDoneEvent:
+      allOf:
+        - $ref: "#/components/schemas/AgentStreamExtras"
+        - type: object
+          required: [type, text, sessionReset, browserOpen, costUsd]
+          properties:
+            type:
+              type: string
+              const: done
+            text:
+              type: string
+            sessionReset:
+              type: boolean
+            browserOpen:
+              type: boolean
+            costUsd:
+              type: number
+
+    AgentErrorEvent:
+      allOf:
+        - $ref: "#/components/schemas/AgentStreamExtras"
+        - type: object
+          required: [type, error, costUsd]
+          properties:
+            type:
+              type: string
+              const: error
+            error:
+              type: string
+            costUsd:
+              type: number
+
+    SavedPromptItem:
+      type: object
+      required: [sequence, id, prompt, model]
+      additionalProperties: false
+      properties:
+        sequence:
+          type: integer
+          minimum: 1
+        id:
+          type: string
+        prompt:
+          type: string
+        model:
+          type: string
+        costUsd:
+          type: number
+        resultText:
+          type: string
+        sessionReset:
+          type: boolean
+        error:
+          type: string
+
+    SavedItemsBody:
+      type: object
+      required: [items]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SavedPromptItem"
+
+    SavedCreateRequest:
+      type: object
+      required: [fileName, items]
+      additionalProperties: false
+      properties:
+        fileName:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SavedPromptItem"
+
+    SavedFile:
+      type: object
+      required: [fileName, items]
+      additionalProperties: false
+      properties:
+        fileName:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SavedPromptItem"
+
+    HistoryRunStatus:
+      type: string
+      enum: [running, done, error, stopped]
+
+    HistoryItemStatus:
+      type: string
+      enum: [pending, running, done, error, skipped]
+
+    HistoryRunSummary:
+      type: object
+      required: [historyFile, status]
+      additionalProperties: false
+      properties:
+        historyFile:
+          type: string
+        status:
+          $ref: "#/components/schemas/HistoryRunStatus"
+
+    HistoryList:
+      type: object
+      required: [runs]
+      additionalProperties: false
+      properties:
+        runs:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryRunSummary"
+
+    HistoryDetailItem:
+      type: object
+      required: [sequence, prompt, model, screenshots]
+      additionalProperties: false
+      properties:
+        sequence:
+          type: integer
+        prompt:
+          type: string
+        model:
+          type: string
+        resultText:
+          type: string
+        screenshots:
+          type: array
+          items:
+            type: string
+
+    HistoryDetail:
+      type: object
+      required: [historyFile, status, items]
+      additionalProperties: false
+      properties:
+        historyFile:
+          type: string
+        status:
+          $ref: "#/components/schemas/HistoryRunStatus"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryDetailItem"
+
+    HistoryItem:
+      type: object
+      required: [sequence, id, prompt, model, status]
+      additionalProperties: false
+      properties:
+        sequence:
+          type: integer
+        id:
+          type: string
+        prompt:
+          type: string
+        model:
+          type: string
+        status:
+          $ref: "#/components/schemas/HistoryItemStatus"
+        resultText:
+          type: string
+        costUsd:
+          type: number
+        error:
+          type: string
+
+    HistoryStatus:
+      type: object
+      required:
+        - fileName
+        - historyFile
+        - status
+        - current
+        - total
+        - screenshotPath
+        - items
+      additionalProperties: false
+      properties:
+        fileName:
+          type: string
+        historyFile:
+          type: string
+        status:
+          $ref: "#/components/schemas/HistoryRunStatus"
+        current:
+          type: integer
+        total:
+          type: integer
+        screenshotPath:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryItem"

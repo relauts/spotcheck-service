@@ -1,0 +1,19 @@
+{
+  "apiToken": "replace-me",
+  "geminiApiKey": "replace-me",
+  "targetUrl": "https://example.com",
+  "port": 18732,
+  "headless": true,
+  "chromiumSandbox": true,
+  "navigationTimeoutMs": 30000,
+  "viewportWidth": 1024,
+  "viewportHeight": 768,
+  "geminiModel": "gemini-3.6-flash",
+  "geminiThinkingLevel": "minimal",
+  "agentMaxTurns": 15,
+  "corsOrigins": [],
+  "savedDir": "saved",
+  "processedDir": "processed",
+  "historyDir": "history",
+  "maxSavedRuns": 2
+}

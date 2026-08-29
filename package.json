@@ -1,0 +1,56 @@
+{
+  "name": "@relauts/spotcheck-service",
+  "version": "1.0.0",
+  "description": "Local HTTP API that runs a Gemini computer-use agent in a Playwright Chromium session",
+  "license": "AGPL-3.0-or-later",
+  "author": "Relauts Pvt. Ltd.",
+  "type": "module",
+  "private": true,
+  "homepage": "https://github.com/relauts/spotcheck#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/relauts/spotcheck.git"
+  },
+  "bugs": {
+    "url": "https://github.com/relauts/spotcheck/issues"
+  },
+  "keywords": [
+    "ai",
+    "browser-automation",
+    "computer-use",
+    "playwright",
+    "api"
+  ],
+  "files": [
+    "relauts-spotcheck-service-config.example.json",
+    "dist",
+    "files",
+    "openapi.yaml",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "bin": {
+    "spotcheck-service": "dist/api/server.js"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "main": "dist/api/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && node dist/api/server.js",
+    "dev": "tsx src/api/server.ts",
+    "agent": "tsx src/computer-use/index.ts",
+    "test": "tsx --test tests/shared/*.test.ts tests/playwright/*.test.ts tests/api/*.test.ts tests/computer-use/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^2.17.1",
+    "playwright": "^1.55.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.4",
+    "typescript": "^5.9.2"
+  }
+}
