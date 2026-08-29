@@ -270,6 +270,25 @@ export function readConfigFile(filePath: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
+export function writeConfigFile(filePath: string, data: Record<string, unknown>): void {
+  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+}
+
+export function readGeminiApiKeyFromConfigFile(filePath: string): string {
+  const raw = readConfigFile(filePath);
+  return parseOptionalString(pick(raw, "geminiApiKey", "GEMINI_API_KEY")) ?? "";
+}
+
+export function writeGeminiApiKeyToConfigFile(filePath: string, geminiApiKey: string): void {
+  const raw = readConfigFile(filePath);
+  raw.geminiApiKey = geminiApiKey;
+  writeConfigFile(filePath, raw);
+}
+
+export function setGeminiApiKey(config: AppConfig, geminiApiKey: string): void {
+  (config as { geminiApiKey: string | undefined }).geminiApiKey = geminiApiKey;
+}
+
 export function loadConfig(source?: Record<string, unknown>): AppConfig {
   const raw = source ?? readConfigFile(resolveConfigFilePath());
 

@@ -22,6 +22,7 @@ security:
 
 tags:
   - name: health
+  - name: apikey
   - name: models
   - name: agent
   - name: session
@@ -44,6 +45,52 @@ paths:
                 $ref: "#/components/schemas/OkResponse"
         "405":
           $ref: "#/components/responses/MethodNotAllowed"
+
+  /v1/apikey:
+    get:
+      tags: [apikey]
+      summary: Get the Gemini API key
+      description: Reads `geminiApiKey` from the config JSON file.
+      responses:
+        "200":
+          description: Current Gemini API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeminiApiKey"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+        "500":
+          $ref: "#/components/responses/Error"
+    put:
+      tags: [apikey]
+      summary: Update the Gemini API key
+      description: |
+        Writes `geminiApiKey` to the config JSON file and applies it for later
+        agent runs without a restart.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeminiApiKey"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+        "500":
+          $ref: "#/components/responses/Error"
 
   /v1/models:
     get:
@@ -550,6 +597,14 @@ components:
         ok:
           type: boolean
           const: true
+
+    GeminiApiKey:
+      type: object
+      required: [geminiApiKey]
+      additionalProperties: false
+      properties:
+        geminiApiKey:
+          type: string
 
     FileNameRequest:
       type: object

@@ -9,7 +9,12 @@ import { closeServiceServer, startServiceServer } from "../../src/api/server.js"
 import { writeSavedFile } from "../../src/api/saved.js";
 import { AgentRunError } from "../../src/computer-use/index.js";
 import { BrowserClosedError, type BrowserSession } from "../../src/playwright/session.js";
-import { loadConfig } from "../../src/shared/config.js";
+import {
+  CONFIG_FILE_NAME,
+  loadConfig,
+  readConfigFile,
+  readGeminiApiKeyFromConfigFile,
+} from "../../src/shared/config.js";
 import { EMPTY_USAGE } from "../../src/shared/cost.js";
 const TEST_TOKEN = "test-api-token";
 const UI_ORIGIN = "http://127.0.0.1:18733";
@@ -42,6 +47,29 @@ async function makeTempDir(): Promise<string> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "web-processed-"));
   tempDirs.push(dir);
   return dir;
+}
+
+async function writeTempConfigFile(
+  geminiApiKey = "old-gemini-key",
+  extra: Record<string, unknown> = {},
+): Promise<string> {
+  const dir = await makeTempDir();
+  const filePath = path.join(dir, CONFIG_FILE_NAME);
+  await fs.writeFile(
+    filePath,
+    JSON.stringify(
+      {
+        apiToken: TEST_TOKEN,
+        geminiApiKey,
+        targetUrl: "https://example.com",
+        port: 9,
+        ...extra,
+      },
+      null,
+      2,
+    ),
+  );
+  return filePath;
 }
 
 function createFakeSession(initialOpen = false): BrowserSession & {
@@ -174,6 +202,100 @@ describe("startServiceServer", () => {
         headers: { Authorization: "Bearer wrong-token" },
       });
       assert.equal(response.status, 401);
+    } finally {
+      await closeServiceServer(server);
+    }
+  });
+
+  it("returns the Gemini API key from the config JSON file", async () => {
+    const processedDir = await makeTempDir();
+    const configFilePath = await writeTempConfigFile("file-gemini-key");
+    const config = loadConfig(readConfigFile(configFilePath));
+    const server = await startTestServer(processedDir, { config, configFilePath });
+    const address = server.address();
+    assert.ok(typeof address === "object" && address);
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/v1/apikey`, {
+        headers: authHeaders(),
+      });
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { geminiApiKey: "file-gemini-key" });
+    } finally {
+      await closeServiceServer(server);
+    }
+  });
+
+  it("updates the Gemini API key in the config JSON file and in memory", async () => {
+    const processedDir = await makeTempDir();
+    const configFilePath = await writeTempConfigFile("old-gemini-key");
+    const config = loadConfig(readConfigFile(configFilePath));
+    const server = await startTestServer(processedDir, { config, configFilePath });
+    const address = server.address();
+    assert.ok(typeof address === "object" && address);
+
+    try {
+      const updated = await fetch(`http://127.0.0.1:${address.port}/v1/apikey`, {
+        method: "PUT",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ geminiApiKey: "new-gemini-key" }),
+      });
+      assert.equal(updated.status, 200);
+      assert.deepEqual(await updated.json(), { ok: true });
+      assert.equal(readGeminiApiKeyFromConfigFile(configFilePath), "new-gemini-key");
+      assert.equal(readConfigFile(configFilePath).port, 9);
+      assert.equal(config.geminiApiKey, "new-gemini-key");
+
+      const fetched = await fetch(`http://127.0.0.1:${address.port}/v1/apikey`, {
+        headers: authHeaders(),
+      });
+      assert.equal(fetched.status, 200);
+      assert.deepEqual(await fetched.json(), { geminiApiKey: "new-gemini-key" });
+    } finally {
+      await closeServiceServer(server);
+    }
+  });
+
+  it("rejects an empty Gemini API key update", async () => {
+    const processedDir = await makeTempDir();
+    const configFilePath = await writeTempConfigFile();
+    const config = loadConfig(readConfigFile(configFilePath));
+    const server = await startTestServer(processedDir, { config, configFilePath });
+    const address = server.address();
+    assert.ok(typeof address === "object" && address);
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/v1/apikey`, {
+        method: "PUT",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ geminiApiKey: "   " }),
+      });
+      assert.equal(response.status, 400);
+      assert.deepEqual(await response.json(), { error: "geminiApiKey is required" });
+      assert.equal(readGeminiApiKeyFromConfigFile(configFilePath), "old-gemini-key");
+    } finally {
+      await closeServiceServer(server);
+    }
+  });
+
+  it("rejects wrong methods and missing auth on the API key route", async () => {
+    const processedDir = await makeTempDir();
+    const configFilePath = await writeTempConfigFile();
+    const config = loadConfig(readConfigFile(configFilePath));
+    const server = await startTestServer(processedDir, { config, configFilePath });
+    const address = server.address();
+    assert.ok(typeof address === "object" && address);
+
+    try {
+      const noAuth = await fetch(`http://127.0.0.1:${address.port}/v1/apikey`);
+      assert.equal(noAuth.status, 401);
+
+      const post = await fetch(`http://127.0.0.1:${address.port}/v1/apikey`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ geminiApiKey: "new-gemini-key" }),
+      });
+      assert.equal(post.status, 405);
     } finally {
       await closeServiceServer(server);
     }

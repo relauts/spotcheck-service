@@ -81,6 +81,8 @@ Token compare uses SHA-256 digests + `timingSafeEqual`.
 | Method | Path | Auth | Body / notes |
 |---|---|---|---|
 | `GET` | `/v1/health` | no | `{ "ok": true }` |
+| `GET` | `/v1/apikey` | yes | `{ "geminiApiKey": "..." }` from the config JSON file |
+| `PUT` | `/v1/apikey` | yes | `{ "geminiApiKey": "..." }` writes the config JSON file |
 | `GET` | `/v1/models` | yes | model list from `files/model.json` |
 | `POST` | `/v1/agent` | yes | `{ "task", "model" }` → NDJSON stream |
 | `POST` | `/v1/agent/safety` | yes | `{ "id", "confirmed" }` |
@@ -115,6 +117,18 @@ Health:
 
 ```bash
 curl -s http://127.0.0.1:18732/v1/health
+```
+
+API key:
+
+```bash
+curl -s http://127.0.0.1:18732/v1/apikey \
+  -H "Authorization: Bearer <apiToken>"
+
+curl -s -X PUT http://127.0.0.1:18732/v1/apikey \
+  -H "Authorization: Bearer <apiToken>" \
+  -H "Content-Type: application/json" \
+  -d '{"geminiApiKey":"your-gemini-key"}'
 ```
 
 Models:

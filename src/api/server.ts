@@ -18,7 +18,15 @@ import {
   type BrowserSession,
   type SessionStatus,
 } from "../playwright/session.js";
-import { loadConfig, requireApiToken, type AppConfig } from "../shared/config.js";
+import {
+  loadConfig,
+  readGeminiApiKeyFromConfigFile,
+  requireApiToken,
+  resolveConfigFilePath,
+  setGeminiApiKey,
+  writeGeminiApiKeyToConfigFile,
+  type AppConfig,
+} from "../shared/config.js";
 import { computeCostUsd, EMPTY_USAGE } from "../shared/cost.js";
 import { logger } from "../shared/logger.js";
 import { isMainModule } from "../shared/main-module.js";
@@ -78,6 +86,7 @@ export interface ServiceServerDeps {
   readonly apiToken?: string;
   readonly corsOrigins?: readonly string[];
   readonly config?: AppConfig;
+  readonly configFilePath?: string;
   readonly reportAutomation?: AutomationReporter;
 }
 
@@ -730,6 +739,50 @@ function handleHealth(
   sendJson(response, 200, { ok: true }, cors);
 }
 
+function parseGeminiApiKeyBody(body: unknown): string {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    throw new HttpError(400, "Body must be a JSON object");
+  }
+
+  const geminiApiKey = (body as { geminiApiKey?: unknown }).geminiApiKey;
+  if (typeof geminiApiKey !== "string" || !geminiApiKey.trim()) {
+    throw new HttpError(400, "geminiApiKey is required");
+  }
+
+  return geminiApiKey.trim();
+}
+
+async function handleApiKeyRequest(
+  request: http.IncomingMessage,
+  response: http.ServerResponse,
+  config: AppConfig,
+  configFilePath: string,
+  cors: http.OutgoingHttpHeaders,
+): Promise<void> {
+  if (request.method === "GET") {
+    try {
+      sendJson(response, 200, { geminiApiKey: readGeminiApiKeyFromConfigFile(configFilePath) }, cors);
+    } catch (error: unknown) {
+      throw new HttpError(500, errorMessage(error));
+    }
+    return;
+  }
+
+  if (request.method !== "PUT") {
+    sendMethodNotAllowed(response, "GET, PUT", cors);
+    return;
+  }
+
+  const geminiApiKey = parseGeminiApiKeyBody(await readJsonBody(request));
+  try {
+    writeGeminiApiKeyToConfigFile(configFilePath, geminiApiKey);
+  } catch (error: unknown) {
+    throw new HttpError(500, errorMessage(error));
+  }
+  setGeminiApiKey(config, geminiApiKey);
+  sendJson(response, 200, { ok: true }, cors);
+}
+
 function parseRequiredName(body: unknown, field = "fileName"): string {
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
     throw new HttpError(400, "Body must be a JSON object");
@@ -934,6 +987,7 @@ export async function startServiceServer(
   const processedDir = deps.processedDir ?? config.processedDir;
   const savedDir = deps.savedDir ?? config.savedDir;
   const historyDir = deps.historyDir ?? config.historyDir;
+  const configFilePath = deps.configFilePath ?? resolveConfigFilePath();
 
   const busy = { current: false };
   const session =
@@ -987,6 +1041,11 @@ export async function startServiceServer(
 
         if (!isAuthorized(request.headers.authorization, apiToken)) {
           sendJson(response, 401, { error: "Unauthorized" }, cors);
+          return;
+        }
+
+        if (pathname === "/v1/apikey") {
+          await handleApiKeyRequest(request, response, config, configFilePath, cors);
           return;
         }
 

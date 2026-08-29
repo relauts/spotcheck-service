@@ -9,9 +9,12 @@ import {
   GEMINI_SAFETY_POLICIES,
   loadConfig,
   readConfigFile,
+  readGeminiApiKeyFromConfigFile,
   requireApiToken,
   requireGeminiApiKey,
   resolveConfigFilePath,
+  setGeminiApiKey,
+  writeGeminiApiKeyToConfigFile,
 } from "../../src/shared/config.js";
 
 describe("loadConfig", () => {
@@ -273,6 +276,33 @@ describe("loadConfig", () => {
     const filePath = path.join(dir, CONFIG_FILE_NAME);
     fs.writeFileSync(filePath, "[1]");
     assert.throws(() => readConfigFile(filePath), /JSON object/);
+  });
+
+  it("updates geminiApiKey in the config file and keeps other fields", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spotcheck-config-"));
+    const filePath = path.join(dir, CONFIG_FILE_NAME);
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({
+        port: 9,
+        apiToken: "file-token",
+        geminiApiKey: "old-key",
+      }),
+    );
+
+    writeGeminiApiKeyToConfigFile(filePath, "new-key");
+
+    const raw = readConfigFile(filePath);
+    assert.equal(raw.port, 9);
+    assert.equal(raw.apiToken, "file-token");
+    assert.equal(raw.geminiApiKey, "new-key");
+    assert.equal(readGeminiApiKeyFromConfigFile(filePath), "new-key");
+  });
+
+  it("mutates geminiApiKey on a loaded config object", () => {
+    const config = loadConfig({ geminiApiKey: "old-key" });
+    setGeminiApiKey(config, "new-key");
+    assert.equal(config.geminiApiKey, "new-key");
   });
 });
 
