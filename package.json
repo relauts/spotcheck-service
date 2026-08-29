@@ -5,14 +5,16 @@
   "license": "AGPL-3.0-or-later",
   "author": "Relauts Pvt. Ltd.",
   "type": "module",
-  "private": true,
-  "homepage": "https://github.com/relauts/spotcheck#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/relauts/spotcheck-service#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/relauts/spotcheck.git"
+    "url": "git+https://github.com/relauts/spotcheck-service.git"
   },
   "bugs": {
-    "url": "https://github.com/relauts/spotcheck/issues"
+    "url": "https://github.com/relauts/spotcheck-service/issues"
   },
   "keywords": [
     "ai",
@@ -24,6 +26,7 @@
   "files": [
     "relauts-spotcheck-service-config.example.json",
     "dist",
+    "src",
     "files",
     "openapi.yaml",
     "LICENSE",
@@ -38,6 +41,7 @@
   "main": "dist/api/server.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build",
     "start": "npm run build && node dist/api/server.js",
     "dev": "tsx src/api/server.ts",
     "agent": "tsx src/computer-use/index.ts",

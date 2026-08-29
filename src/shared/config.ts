@@ -242,6 +242,11 @@ function resolveRepoRoot(): string {
 }
 
 export function resolveConfigFilePath(): string {
+  const fromCwd = path.resolve(process.cwd(), CONFIG_FILE_NAME);
+  if (fs.existsSync(fromCwd)) {
+    return fromCwd;
+  }
+
   return path.resolve(resolveRepoRoot(), "..", CONFIG_FILE_NAME);
 }
 

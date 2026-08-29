@@ -223,6 +223,20 @@ describe("loadConfig", () => {
     assert.equal(config.telemetryUrl, "https://spotcheck-telemetry.example/v1/automation");
   });
 
+  it("prefers a config file in the working directory", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spotcheck-cwd-config-"));
+    const filePath = path.join(dir, CONFIG_FILE_NAME);
+    fs.writeFileSync(filePath, "{}");
+    const previousCwd = process.cwd();
+
+    try {
+      process.chdir(dir);
+      assert.equal(resolveConfigFilePath(), path.resolve(process.cwd(), CONFIG_FILE_NAME));
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
   it("resolves the sibling config file path", () => {
     const configPath = resolveConfigFilePath();
     assert.equal(path.basename(configPath), CONFIG_FILE_NAME);

@@ -6,14 +6,37 @@ No UI. The server always binds to `127.0.0.1`. Callers send a Bearer token. You 
 
 License: AGPL-3.0-or-later. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
+## Install
+
+```bash
+npm install @relauts/spotcheck-service
+npx playwright install chromium
+```
+
+Copy the example config into the folder where you will run the CLI:
+
+```bash
+cp node_modules/@relauts/spotcheck-service/relauts-spotcheck-service-config.example.json ./relauts-spotcheck-service-config.json
+```
+
+Set at least `apiToken` and `geminiApiKey`. Then:
+
+```bash
+npx spotcheck-service
+```
+
+The service listens on `http://127.0.0.1:18732` by default.
+
+Config is read from `relauts-spotcheck-service-config.json` in the current working directory. If that file is missing, the service looks next to the package folder (git clone layout).
+
 ## Requirements
 
 - Node.js `>=18.18.0`
 - Chromium for Playwright: `npx playwright install chromium`
 
-## Setup
+## From source
 
-Config is a JSON file **next to this repo**, not inside it:
+Config can also sit **next to this repo**, not inside it:
 
 ```
 parent/
@@ -25,11 +48,7 @@ parent/
 cp relauts-spotcheck-service-config.example.json ../relauts-spotcheck-service-config.json
 ```
 
-Set at least `apiToken` and `geminiApiKey` in that sibling file. Do not commit the sibling file. It holds secrets.
-
-A dummy template lives in this repo: [relauts-spotcheck-service-config.example.json](relauts-spotcheck-service-config.example.json).
-
-## Run
+Set at least `apiToken` and `geminiApiKey`. Do not commit the real config file.
 
 ```bash
 npm install
@@ -42,8 +61,6 @@ Or:
 ```bash
 npm start
 ```
-
-The service listens on `http://127.0.0.1:18732` by default.
 
 CLI after build: `spotcheck-service`.
 
@@ -125,7 +142,7 @@ curl -N http://127.0.0.1:18732/v1/agent \
 
 ## CORS
 
-Set `corsOrigins` in the sibling JSON to an allow list. No credentials. Preflight: `OPTIONS`.
+Set `corsOrigins` in the config JSON to an allow list. No credentials. Preflight: `OPTIONS`.
 
 ## Develop
 
@@ -136,7 +153,7 @@ npm run typecheck
 
 How to send a PR: [CONTRIBUTING.md](CONTRIBUTING.md).
 
-This git repo is the source. The npm package is marked `private` and is not published to the public registry.
+Install from npm: `npm install @relauts/spotcheck-service`.
 
 Local run data (`saved/`, `processed/`, `history/`) stays on disk and is gitignored.
 
