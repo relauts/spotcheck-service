@@ -13,7 +13,7 @@
   "historyDir": "../relauts-spotcheck-processed/history",
   "geminiApiKey": "",
   "geminiModel": "gemini-3.6-flash",
-  "geminiThinkingLevel": "minimal",
+  "geminiThinkingLevel": "high",
   "agentMaxTurns": 15,
   "seed": 42,
   "geminiDisabledSafetyPolicies": "",

@@ -207,6 +207,30 @@ async function ignoreFailure(run: () => Promise<unknown>): Promise<void> {
   }
 }
 
+// Playwright invokes a real Function object with `arg`, but only `eval`s a string
+// primitive as an expression (ignoring `arg`). This project has no DOM lib, so the
+// browser-side body is built via `new Function` to stay a real callable without
+// requiring DOM types for type-checking.
+const waitForPaintSettleInBrowser = new Function(
+  "settleMs",
+  `return new Promise((resolve) => {
+    const finish = () => {
+      void document.documentElement.offsetHeight;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.setTimeout(resolve, settleMs);
+        });
+      });
+    };
+    if (document.readyState === "complete") {
+      finish();
+      return;
+    }
+    window.addEventListener("load", finish, { once: true });
+    window.setTimeout(finish, 1000);
+  });`,
+) as (settleMs: number) => Promise<void>;
+
 export async function waitForScreenshotReady(page: Page): Promise<void> {
   if (page.isClosed()) {
     return;
@@ -214,27 +238,7 @@ export async function waitForScreenshotReady(page: Page): Promise<void> {
 
   await ignoreFailure(() => page.waitForLoadState("load", { timeout: SCREENSHOT_LOAD_TIMEOUT_MS }));
 
-  await ignoreFailure(() =>
-    page.evaluate(
-      `(settleMs) => new Promise((resolve) => {
-        const finish = () => {
-          void document.documentElement.offsetHeight;
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              window.setTimeout(resolve, settleMs);
-            });
-          });
-        };
-        if (document.readyState === "complete") {
-          finish();
-          return;
-        }
-        window.addEventListener("load", finish, { once: true });
-        window.setTimeout(finish, 1000);
-      })`,
-      SCREENSHOT_PAINT_SETTLE_MS,
-    ),
-  );
+  await ignoreFailure(() => page.evaluate(waitForPaintSettleInBrowser, SCREENSHOT_PAINT_SETTLE_MS));
 }
 
 export function createProcessedScreenshotSaver(page: Page, directory = PROCESSED_DIR) {
